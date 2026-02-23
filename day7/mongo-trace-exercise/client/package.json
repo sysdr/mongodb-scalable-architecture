@@ -1,0 +1,8 @@
+{
+  "name": "mongo-trace-client",
+  "version": "1.0.0",
+  "description": "MongoDB client for packet trace exercise",
+  "main": "client.js",
+  "scripts": { "start": "node client.js" },
+  "dependencies": { "mongodb": "^6.0.0" }
+}

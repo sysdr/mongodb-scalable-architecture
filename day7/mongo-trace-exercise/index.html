@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MongoDB Trace Exercise Dashboard</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 24px; background: #0f172a; color: #e2e8f0; line-height: 1.5; }
+    .container { max-width: 960px; margin: 0 auto; }
+    h1 { font-size: 1.75rem; color: #38bdf8; margin: 0 0 8px 0; }
+    .subtitle { color: #94a3b8; margin: 0 0 24px 0; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    .card h2 { font-size: 1.1rem; color: #f1f5f9; margin: 0 0 16px 0; padding-bottom: 8px; border-bottom: 1px solid #334155; }
+    .metrics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+    .metric { background: #334155; border-radius: 6px; padding: 12px; text-align: center; }
+    .metric .label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px; }
+    .metric .value { font-size: 1.25rem; font-weight: 600; color: #38bdf8; }
+    .footer { margin-top: 24px; font-size: 0.85rem; color: #64748b; }
+    .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #22c55e; margin-right: 6px; animation: pulse 2s ease-in-out infinite; }
+    .live-dot.error { background: #dc2626; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+    .console-card .console-buttons { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+    .console-card .btn { padding: 8px 16px; border: none; border-radius: 6px; font-size: 0.9rem; cursor: pointer; background: #334155; color: #e2e8f0; }
+    .console-card .btn:hover { background: #475569; }
+    .console-card .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .console-card .btn-run { background: #0f766e; color: #fff; }
+    .console-card .btn-run:hover:not(:disabled) { background: #0d9488; }
+    .console-output { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 12px; min-height: 120px; max-height: 320px; overflow: auto; }
+    .console-output pre { margin: 0; font-family: ui-monospace, monospace; font-size: 0.8rem; color: #94a3b8; white-space: pre-wrap; word-break: break-all; }
+    .console-output pre.empty { color: #64748b; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>MongoDB Trace Exercise Dashboard</h1>
+    <p class="subtitle">Cold vs warm path latency (from pcap) and live MongoDB metrics</p>
+
+    <div class="card">
+      <h2><span class="live-dot" id="liveDot"></span> Trace metrics (last run) <span id="traceUpdated"></span></h2>
+      <div class="metrics-grid" id="traceGrid"></div>
+    </div>
+
+    <div class="card">
+      <h2>Live MongoDB metrics <span id="mongoUpdated"></span></h2>
+      <div class="metrics-grid" id="mongoGrid"></div>
+    </div>
+
+    <div class="card console-card">
+      <h2>Console</h2>
+      <p style="color:#94a3b8; margin:0 0 12px 0; font-size:0.9rem;">Run scripts from here so metrics stay populated (no need to use the terminal). If you see &quot;Not found&quot;, restart the dashboard once: in a terminal run <code>./stop.sh</code> then <code>./start.sh</code>.</p>
+      <div class="console-buttons">
+        <button type="button" class="btn btn-run" data-action="demo">Run demo</button>
+        <button type="button" class="btn btn-run" data-action="start">Run start</button>
+        <button type="button" class="btn" data-action="tests">Run tests</button>
+      </div>
+      <div class="console-output"><pre class="empty" id="consoleOut">Output will appear here after you run a script.</pre></div>
+    </div>
+
+    <div class="footer" id="footer"></div>
+  </div>
+  <script>
+    var traceGrid = document.getElementById('traceGrid');
+    var mongoGrid = document.getElementById('mongoGrid');
+    var traceUpdated = document.getElementById('traceUpdated');
+    var mongoUpdated = document.getElementById('mongoUpdated');
+    var liveDot = document.getElementById('liveDot');
+    var footer = document.getElementById('footer');
+
+    function renderTrace(t) {
+      if (!t || (t.coldAuthDurationSec === undefined && t.coldQueryLatencySec === undefined)) {
+        traceGrid.innerHTML = '<p style="color:#94a3b8;">No trace data yet. Run start.sh or demo.sh to capture and analyze.</p>';
+        traceUpdated.textContent = '';
+        return;
+      }
+      traceGrid.innerHTML = [
+        { label: 'Cold auth (s)', value: Number(t.coldAuthDurationSec).toFixed(4) },
+        { label: 'Cold query ingress (s)', value: Number(t.coldQueryLatencySec).toFixed(4) },
+        { label: 'Warm query ingress (s)', value: Number(t.warmQueryLatencySec).toFixed(4) },
+      ].map(function (item) {
+        return '<div class="metric"><div class="label">' + item.label + '</div><div class="value">' + item.value + '</div></div>';
+      }).join('');
+      traceUpdated.textContent = 'Updated ' + (t.lastUpdated ? new Date(t.lastUpdated).toLocaleTimeString() : '');
+    }
+
+    function renderMongo(m) {
+      if (!m || !m.ok) {
+        mongoGrid.innerHTML = '<p style="color:#f87171;">MongoDB: ' + (m && m.error ? m.error : 'Not connected') + '</p>';
+        liveDot.classList.add('error');
+        return;
+      }
+      liveDot.classList.remove('error');
+      var ops = m.opcounters || {};
+      var conn = m.connections || {};
+      mongoGrid.innerHTML = [
+        { label: 'Documents (testcollection)', value: (m.docCount || 0).toLocaleString() },
+        { label: 'Insert ops', value: (ops.insert || 0).toLocaleString() },
+        { label: 'Query ops', value: (ops.query || 0).toLocaleString() },
+        { label: 'Command ops', value: (ops.command || 0).toLocaleString() },
+        { label: 'Connections current', value: String(conn.current || 0) },
+        { label: 'Connections total created', value: (conn.totalCreated || 0).toLocaleString() },
+      ].map(function (item) {
+        return '<div class="metric"><div class="label">' + item.label + '</div><div class="value">' + item.value + '</div></div>';
+      }).join('');
+      mongoUpdated.textContent = 'Updated ' + new Date().toLocaleTimeString();
+    }
+
+    function fetchAll() {
+      fetch('/api/metrics').then(function (r) { return r.json(); }).then(function (data) {
+        renderTrace(data.trace || null);
+        renderMongo(data.mongo || null);
+        footer.textContent = 'Metrics refresh every 3s. Use the Console above to run demo/start/tests (no zeros).';
+      }).catch(function (e) {
+        renderMongo({ ok: false, error: e.message });
+        footer.textContent = 'Ensure MongoDB is running. Use the Console to run start or demo.';
+      });
+    }
+
+    var consoleOut = document.getElementById('consoleOut');
+    document.querySelectorAll('.console-card [data-action]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var action = this.getAttribute('data-action');
+        var allBtns = document.querySelectorAll('.console-card .btn');
+        allBtns.forEach(function (b) { b.disabled = true; });
+        consoleOut.textContent = 'Running ' + action + '...\n';
+        consoleOut.classList.remove('empty');
+        fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: action }) })
+          .then(function (r) { return r.text().then(function (text) { return { ok: r.ok, status: r.status, text: text }; }); })
+          .then(function (r) {
+            var data;
+            try { data = r.text ? JSON.parse(r.text) : {}; } catch (e) { data = { ok: false, output: r.text || ('Server error ' + r.status) }; }
+            if (!r.ok && !(data && data.output)) data = { ok: false, output: 'Server ' + r.status + ': ' + (r.text || 'No response') };
+            consoleOut.textContent = (data && data.output ? data.output : 'Done.') + '\n\nExit: ' + (data && data.ok ? 'OK' : 'Error');
+          })
+          .catch(function (e) {
+            consoleOut.textContent = 'Error: ' + e.message;
+          })
+          .finally(function () {
+            allBtns.forEach(function (b) { b.disabled = false; });
+          });
+      });
+    });
+
+    fetchAll();
+    setInterval(fetchAll, 3000);
+  </script>
+</body>
+</html>
