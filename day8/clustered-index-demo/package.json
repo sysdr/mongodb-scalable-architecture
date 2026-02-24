@@ -1,0 +1,6 @@
+{
+  "name": "clustered-index-demo",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": { "mongodb": "^6.0.0" }
+}

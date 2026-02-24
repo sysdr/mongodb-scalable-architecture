@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 8 — Content Feed & Product Catalog</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    :root {
+      --bg: #fafbfc;
+      --surface: #ffffff;
+      --border: #e5e7eb;
+      --text: #111827;
+      --text-muted: #6b7280;
+      --accent: #047857;
+      --accent-light: #d1fae5;
+      --live: #059669;
+      --live-bg: #ecfdf5;
+      --err: #b91c1c;
+      --err-bg: #fef2f2;
+      --card-shadow: 0 1px 3px rgba(0,0,0,.06);
+      --radius: 10px;
+    }
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+    .container { max-width: 1200px; margin: 0 auto; padding: 28px 20px 40px; }
+    .page-header {
+      text-align: center;
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid var(--border);
+    }
+    .page-header .badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+      background: var(--accent-light);
+      padding: 4px 10px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+    .page-header h1 {
+      font-size: 1.85rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 0 0 6px 0;
+    }
+    .page-header .tagline { color: var(--text-muted); font-size: 0.95rem; margin: 0; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+      margin-bottom: 20px;
+      box-shadow: var(--card-shadow);
+    }
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 0 0 14px 0;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .live-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--live);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .live-dot.error { background: var(--err); }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+    .project-info {
+      background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+      border-color: #a7f3d0;
+    }
+    .project-info h2 { color: #065f46; }
+    .project-info ul { margin: 0; padding-left: 1.25rem; color: #047857; }
+    .project-info li { margin-bottom: 6px; }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 12px;
+    }
+    .metric {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      text-align: center;
+    }
+    .metric .label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 6px;
+    }
+    .metric .value {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--accent);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .metric.highlight { background: var(--accent-light); border-color: var(--accent); }
+    .metric.highlight .value { color: #065f46; }
+
+    .console-card .help {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      margin: 0 0 14px 0;
+    }
+    .console-buttons { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+    .btn {
+      padding: 10px 18px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      cursor: pointer;
+      background: var(--surface);
+      color: var(--text);
+    }
+    .btn:hover { background: var(--bg); border-color: #d1d5db; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-run { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn-run:hover:not(:disabled) { background: #065f46; border-color: #065f46; }
+    .console-output {
+      background: #111827;
+      color: #e5e7eb;
+      border-radius: 8px;
+      padding: 14px;
+      min-height: 100px;
+      max-height: 260px;
+      overflow: auto;
+    }
+    .console-output pre {
+      margin: 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .console-output pre.empty { color: #9ca3af; }
+
+    .workflow-section {
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 2px solid var(--border);
+    }
+    .workflow-section h2 {
+      text-align: center;
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+      border: none;
+      padding: 0;
+    }
+    .workflow-diagram {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 20px;
+      box-shadow: var(--card-shadow);
+      width: 100%;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+    .workflow-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px 6px;
+      margin-bottom: 14px;
+    }
+    .workflow-row:last-of-type { margin-bottom: 0; }
+    .workflow-node {
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-align: center;
+      border: 2px solid;
+      max-width: 100%;
+      white-space: normal;
+      line-height: 1.3;
+      flex-shrink: 0;
+    }
+    .workflow-node.app { background: #eff6ff; border-color: #3b82f6; color: #1e40af; }
+    .workflow-node.query { background: #fef3c7; border-color: #d97706; color: #92400e; }
+    .workflow-node.db { background: #d1fae5; border-color: var(--accent); color: #065f46; }
+    .workflow-node.index { background: #ede9fe; border-color: #7c3aed; color: #5b21b6; }
+    .workflow-node.result { background: #fce7f3; border-color: #db2777; color: #9d174d; }
+    .workflow-arrow {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      font-weight: 700;
+      animation: flow 1.5s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+    @keyframes flow {
+      0%,100% { opacity: 0.9; transform: translateX(0); }
+      50% { opacity: 1; transform: translateX(4px); }
+    }
+    .workflow-flow-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      margin: 0 2px;
+      animation: dotMove 2s ease-in-out infinite;
+    }
+    .workflow-flow-dot:nth-child(2) { animation-delay: 0.2s; }
+    .workflow-flow-dot:nth-child(3) { animation-delay: 0.4s; }
+    .workflow-caption {
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 16px;
+      line-height: 1.5;
+    }
+    @keyframes dotMove {
+      0%,100% { opacity: 0.3; transform: scale(0.8); }
+      50% { opacity: 1; transform: scale(1.2); }
+    }
+    .footer-text { margin-top: 20px; font-size: 0.8rem; color: var(--text-muted); text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="page-header">
+      <span class="badge">Day 8 — MongoDB Scalable Architecture</span>
+      <h1>Content Feed & Product Catalog</h1>
+      <p class="tagline">Compound-indexed collections for efficient queries</p>
+    </header>
+
+    <section class="card project-info">
+      <h2>About this project</h2>
+      <ul>
+        <li><strong>Content feed</strong> — Posts by user and publish time; indexed by <code>userId</code> + <code>publishTime</code> for fast “get feed by user” and time-range queries.</li>
+        <li><strong>Product catalog</strong> — Products by category and ID; indexed by <code>categoryId</code> + <code>productId</code> for fast category browsing and lookups.</li>
+        <li>Both collections live in <strong>contentDB</strong>. This dashboard shows live document counts and server operations.</li>
+        <li>Use <strong>Run demo</strong> to execute sample queries and see metrics update.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2><span class="live-dot" id="liveDot"></span> Live metrics <span id="mongoUpdated"></span></h2>
+      <div class="metrics-grid" id="mongoGrid"></div>
+    </section>
+
+    <section class="card console-card">
+      <h2>Actions</h2>
+      <p class="help">Run demo to send queries and refresh metrics. Run start to (re)start MongoDB and seed data. Run tests to validate setup.</p>
+      <div class="console-buttons">
+        <button type="button" class="btn btn-run" data-action="demo">Run demo</button>
+        <button type="button" class="btn btn-run" data-action="start">Run start</button>
+        <button type="button" class="btn" data-action="tests">Run tests</button>
+      </div>
+      <div class="console-output"><pre class="empty" id="consoleOut">Output will appear here.</pre></div>
+    </section>
+
+    <section class="workflow-section">
+      <h2>Application workflow</h2>
+      <div class="workflow-diagram">
+        <div class="workflow-row">
+          <span class="workflow-node app">App</span>
+          <span class="workflow-arrow">→</span>
+          <span class="workflow-node query">Feed by user & time</span>
+          <span class="workflow-arrow">→</span>
+          <span class="workflow-node db">contentDB</span>
+          <span class="workflow-arrow">→</span>
+          <span class="workflow-node index">Index (userId, publishTime)</span>
+          <span class="workflow-arrow">→</span>
+          <span class="workflow-node result">Results</span>
+        </div>
+        <div class="workflow-row">
+          <span class="workflow-node app">App</span>
+          <span class="workflow-arrow">→</span>
+          <span class="workflow-node query">Products by category</span>
+          <span class="workflow-arrow">→</span>
+          <span class="workflow-node db">contentDB</span>
+          <span class="workflow-arrow">→</span>
+          <span class="workflow-node index">Index (categoryId, productId)</span>
+          <span class="workflow-arrow">→</span>
+          <span class="workflow-node result">Results</span>
+        </div>
+        <p class="workflow-caption">
+          <span class="workflow-flow-dot"></span><span class="workflow-flow-dot"></span><span class="workflow-flow-dot"></span>
+          Data flows from the application through indexed queries into MongoDB and back. Compound indexes keep feed and catalog queries fast.
+        </p>
+      </div>
+    </section>
+
+    <p class="footer-text" id="footer"></p>
+  </div>
+  <script>
+    var mongoGrid = document.getElementById('mongoGrid');
+    var mongoUpdated = document.getElementById('mongoUpdated');
+    var liveDot = document.getElementById('liveDot');
+    var footer = document.getElementById('footer');
+
+    function renderMongo(m) {
+      if (!m || !m.ok) {
+        mongoGrid.innerHTML = '<p style="color:var(--err);">MongoDB: ' + (m && m.error ? m.error : 'Not connected') + '</p>';
+        liveDot.classList.add('error');
+        return;
+      }
+      liveDot.classList.remove('error');
+      var ops = m.opcounters || {};
+      var conn = m.connections || {};
+      var items = [
+        { label: 'Content feed docs', value: (m.feedCount || 0).toLocaleString(), highlight: true },
+        { label: 'Product catalog docs', value: (m.productCount || 0).toLocaleString(), highlight: true },
+        { label: 'Insert ops', value: (ops.insert || 0).toLocaleString(), highlight: false },
+        { label: 'Query ops', value: (ops.query || 0).toLocaleString(), highlight: false },
+        { label: 'Command ops', value: (ops.command || 0).toLocaleString(), highlight: false },
+        { label: 'Connections', value: String(conn.current || 0), highlight: false },
+        { label: 'Total connections', value: (conn.totalCreated || 0).toLocaleString(), highlight: false },
+      ];
+      mongoGrid.innerHTML = items.map(function (item) {
+        var cls = item.highlight ? ' metric highlight' : ' metric';
+        return '<div class="' + cls + '"><div class="label">' + item.label + '</div><div class="value">' + item.value + '</div></div>';
+      }).join('');
+      mongoUpdated.textContent = 'Updated ' + new Date().toLocaleTimeString();
+    }
+
+    function fetchAll() {
+      fetch('/api/metrics').then(function (r) { return r.json(); }).then(function (data) {
+        renderMongo(data.mongo || null);
+        footer.textContent = 'Metrics refresh every 3s. Run demo to keep values updated.';
+      }).catch(function (e) {
+        renderMongo({ ok: false, error: e.message });
+        footer.textContent = 'Start MongoDB with start.sh, then run demo.';
+      });
+    }
+
+    var consoleOut = document.getElementById('consoleOut');
+    document.querySelectorAll('.console-card [data-action]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var action = this.getAttribute('data-action');
+        var allBtns = document.querySelectorAll('.console-card .btn');
+        allBtns.forEach(function (b) { b.disabled = true; });
+        consoleOut.textContent = 'Running ' + action + '...\n';
+        consoleOut.classList.remove('empty');
+        fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: action }) })
+          .then(function (r) { return r.text().then(function (text) { return { ok: r.ok, status: r.status, text: text }; }); })
+          .then(function (r) {
+            var data;
+            try { data = r.text ? JSON.parse(r.text) : {}; } catch (e) { data = { ok: false, output: r.text || ('Server error ' + r.status) }; }
+            if (!r.ok && !(data && data.output)) data = { ok: false, output: 'Server ' + r.status + ': ' + (r.text || 'No response') };
+            consoleOut.textContent = (data && data.output ? data.output : 'Done.') + '\n\nExit: ' + (data && data.ok ? 'OK' : 'Error');
+          })
+          .catch(function (e) { consoleOut.textContent = 'Error: ' + e.message; })
+          .finally(function () { allBtns.forEach(function (b) { b.disabled = false; }); });
+      });
+    });
+
+    fetchAll();
+    setInterval(fetchAll, 3000);
+  </script>
+</body>
+</html>
